@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, MessageCircle, X, Minimize2, Maximize2 } from 'lucide-react';
 import EmissionsService, { FacilitySummary } from '../services/EmissionsService';
 import { API_CONFIG } from '../config/api';
+import MockChatbotService from '../services/MockChatbotService';
 
 interface Message {
   id: string;
@@ -61,39 +62,22 @@ const SystemChatbot = () => {
     setLoading(true);
 
     try {
-      // Call Bedrock Lambda endpoint with real-time data
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://jbljrvuy95.execute-api.ap-south-1.amazonaws.com/prod';
-      const response = await fetch(`${apiUrl}/bedrock-chatbot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userMessage: userInput,
-          systemData: systemData,
-          enableVoice: false,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      // Use mock chatbot service (frontend-only, no backend required)
+      const response = await MockChatbotService.processMessage(userInput, systemData);
+      
       const botResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: data.textResponse || 'Unable to process your request.',
+        content: response.textResponse,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botResponse]);
     } catch (error) {
-      console.error('Error calling Bedrock chatbot:', error);
-      // Show error message to user
+      console.error('Error processing message:', error);
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: `Error: Unable to reach Bedrock service. ${error instanceof Error ? error.message : 'Please try again.'}`,
+        content: 'Sorry, I encountered an error processing your message. Please try again.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorResponse]);
