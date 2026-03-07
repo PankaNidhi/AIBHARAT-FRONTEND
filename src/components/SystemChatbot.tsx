@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, MessageCircle, X, Minimize2, Maximize2, Zap } from 'lucide-react';
 import EmissionsService, { FacilitySummary } from '../services/EmissionsService';
 import { API_CONFIG } from '../config/api';
-import BedrockChatbotService from '../services/BedrockChatbotService';
+import OpenAIChatbotService from '../services/OpenAIChatbotService';
 import { useProjectContext } from '../contexts/ProjectContext';
 
 interface Message {
@@ -26,7 +26,7 @@ const SystemChatbot = () => {
     {
       id: '1',
       type: 'bot',
-      content: 'Hello! I\'m your AI Climate Control Assistant powered by AWS Bedrock. I analyze your facility data, emissions, projects, and alerts to provide intelligent insights. Ask me about your system status, emissions, projects, alerts, or any decarbonization strategies.',
+      content: 'Hello! I\'m your AI Climate Control Assistant powered by OpenAI. I analyze your facility data, emissions, projects, and alerts to provide intelligent insights. Ask me about your system status, emissions, projects, alerts, or any decarbonization strategies.',
       timestamp: new Date(),
     },
   ]);
@@ -70,8 +70,8 @@ const SystemChatbot = () => {
     setLoading(true);
 
     try {
-      // Use Bedrock chatbot service with full application context
-      const response = await BedrockChatbotService.sendMessage(userInput, systemData, projects);
+      // Use OpenAI chatbot service with full application context
+      const response = await OpenAIChatbotService.sendMessage(userInput, systemData, projects);
       
       const botResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -86,7 +86,7 @@ const SystemChatbot = () => {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: 'I encountered an issue connecting to the AI service. I\'m using a local knowledge base to help you. Please try again or ask a simpler question.',
+        content: 'I encountered an issue connecting to the AI service. Please ensure your OpenAI API key is configured (VITE_OPENAI_API_KEY environment variable). Try again or ask a simpler question.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorResponse]);
@@ -115,7 +115,7 @@ const SystemChatbot = () => {
           <Zap size={20} className="animate-pulse" />
           <div>
             <h3 className="font-semibold">AI Climate Assistant</h3>
-            <p className="text-xs text-blue-100">Powered by AWS Bedrock</p>
+            <p className="text-xs text-blue-100">Powered by OpenAI</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
