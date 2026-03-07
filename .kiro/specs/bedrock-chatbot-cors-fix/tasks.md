@@ -1,0 +1,121 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Fault Condition** - CORS Preflight and Response Format Failures
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the CORS, endpoint URL, and response format bugs
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases: OPTIONS requests to bedrock-chatbot endpoint, POST requests with incorrect endpoint URL, and Lambda responses with wrong property names
+  - Test that OPTIONS requests to `/bedrock-chatbot` return proper CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`)
+  - Test that POST requests use the correct endpoint URL with `/prod` prefix: `https://jbljrvuy95.execute-api.ap-south-1.amazonaws.com/prod/bedrock-chatbot`
+  - Test that Lambda responses contain `textResponse` and `audioUrl` properties (not `message` and `voiceUrl`)
+  - Test that frontend can successfully parse Lambda responses without accessing `data.body`
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found:
+    - OPTIONS request returns 403 or missing CORS headers
+    - POST request goes to wrong endpoint (missing `/prod`)
+    - Lambda response has `message` instead of `textResponse`
+    - Frontend parsing fails when accessing `result.textResponse`
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Non-Chatbot Functionality
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs (non-chatbot API endpoints)
+  - Test that emissions API endpoint continues to work with same response format
+  - Test that gas sensors API endpoint continues to work with same response format
+  - Test that alerts API endpoint continues to work with same response format
+  - Test that waste bins API endpoint continues to work with same response format
+  - Test that Claude 3 Haiku model invocation parameters remain unchanged
+  - Test that conversation history management (adding messages, limiting to 10) works identically
+  - Test that system data fetching from EmissionsService continues to work
+  - Write property-based tests capturing observed behavior patterns across all non-chatbot endpoints
+  - Property-based testing generates many test cases for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 3. Fix for Bedrock Chatbot CORS and Configuration Issues
+
+  - [x] 3.1 Configure API Gateway CORS for OPTIONS requests
+    - Execute the existing `fix-cors-api-gateway.sh` script to configure API Gateway
+    - Create OPTIONS method for `/bedrock-chatbot` resource with authorization type NONE
+    - Configure MOCK integration for OPTIONS method (no Lambda invocation)
+    - Add method response with status 200 and CORS header parameters
+    - Add integration response with CORS header values:
+      - `Access-Control-Allow-Origin: *`
+      - `Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS`
+      - `Access-Control-Allow-Headers: Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token`
+    - Update POST method response to include `Access-Control-Allow-Origin` header parameter
+    - Deploy changes to `prod` stage
+    - _Bug_Condition: isBugCondition(input) where input.requestType == 'OPTIONS' AND corsHeadersMissing(input.endpoint)_
+    - _Expected_Behavior: OPTIONS requests return 200 with proper CORS headers_
+    - _Preservation: All other API endpoints and their CORS configurations remain unchanged_
+    - _Requirements: 2.1, 2.2_
+
+  - [x] 3.2 Update Lambda response format
+    - Modify `src/lambda/bedrock-chatbot/index.ts` handler function
+    - Change response object from `{ message, voiceUrl, analysis }` to `{ textResponse, audioUrl, analysis }`
+    - Rename `message` property to `textResponse`
+    - Rename `voiceUrl` property to `audioUrl`
+    - Update TypeScript `ChatbotResponse` interface to match new format
+    - Verify `corsHeaders` are included in all response paths
+    - _Bug_Condition: isBugCondition(input) where input.responseFormat.hasOwnProperty('message') AND NOT input.responseFormat.hasOwnProperty('textResponse')_
+    - _Expected_Behavior: Lambda returns { textResponse: string, audioUrl?: string, analysis: ChatbotAnalysis }_
+    - _Preservation: Claude 3 Haiku model invocation, voice URL generation logic, and analysis data structure remain unchanged_
+    - _Requirements: 2.3, 2.4, 3.1, 3.2_
+
+  - [x] 3.3 Fix BedrockChatbotService response parsing
+    - Modify `src/services/BedrockChatbotService.ts` sendMessage function
+    - Remove `data.body` parsing: change `const result = JSON.parse(data.body || data);` to `const result = data;`
+    - Verify code accesses `result.textResponse` and `result.audioUrl` (should already be correct)
+    - _Bug_Condition: isBugCondition(input) where response parsing expects data.body_
+    - _Expected_Behavior: Frontend successfully parses Lambda response as direct JSON object_
+    - _Preservation: Conversation history management and error handling remain unchanged_
+    - _Requirements: 2.4, 3.3_
+
+  - [x] 3.4 Update API configuration and SystemChatbot component
+    - Update `src/config/api.ts` BASE_URL default value to `'https://jbljrvuy95.execute-api.ap-south-1.amazonaws.com/prod'`
+    - Modify `src/components/SystemChatbot.tsx` handleSendMessage function
+    - Change `data.message` to `data.textResponse` (line 86)
+    - _Bug_Condition: isBugCondition(input) where input.requestType == 'POST' AND NOT input.endpoint.includes('/prod/bedrock-chatbot')_
+    - _Expected_Behavior: POST requests use correct endpoint URL with /prod prefix_
+    - _Preservation: Chatbot UI display, loading indicators, and error handling remain unchanged_
+    - _Requirements: 2.2, 2.5, 3.4_
+
+  - [x] 3.5 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - CORS Preflight Success and Correct Response Format
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - Verify OPTIONS requests return 200 with proper CORS headers
+    - Verify POST requests use correct endpoint URL with `/prod` prefix
+    - Verify Lambda responses contain `textResponse` and `audioUrl` properties
+    - Verify frontend successfully parses responses
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+  - [x] 3.6 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-Chatbot Functionality
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - Verify all non-chatbot API endpoints continue to work identically
+    - Verify Claude model invocation parameters unchanged
+    - Verify conversation history management works identically
+    - Verify system data fetching continues to work
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run all exploration tests and verify they pass (bug is fixed)
+  - Run all preservation tests and verify they pass (no regressions)
+  - Test full chatbot flow: user types message → OPTIONS preflight succeeds → POST request sent → Lambda processes → Frontend displays response
+  - Test chatbot with various system data states (null, empty, full data)
+  - Test that other features (emissions dashboard, alerts, waste bins) continue to work
+  - If any issues arise, document them and ask the user for guidance
