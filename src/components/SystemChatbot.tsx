@@ -86,7 +86,7 @@ const SystemChatbot = () => {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: 'Sorry, I encountered an error processing your message. Please try again.',
+        content: 'I encountered an issue connecting to the AI service. I\'m using a local knowledge base to help you. Please try again or ask a simpler question.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorResponse]);

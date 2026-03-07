@@ -28,6 +28,7 @@ class BedrockChatbotService {
   /**
    * Send message to Bedrock with full application context
    * Analyzes question and generates intelligent response
+   * Falls back to local service if Bedrock is unavailable
    */
   async sendMessage(
     userMessage: string,
@@ -48,51 +49,82 @@ class BedrockChatbotService {
         content: userMessage,
       });
 
-      // Call Bedrock Lambda function with full context
-      const response = await fetch(`${API_CONFIG.BASE_URL}/bedrock-chatbot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userMessage,
-          systemData,
-          projects,
-          conversationHistory: this.conversationHistory,
-          applicationContext: this.getApplicationContextSummary(),
-        }),
-      });
+      // Try to call Bedrock Lambda function with full context
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/bedrock-chatbot`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            userMessage,
+            systemData,
+            projects,
+            conversationHistory: this.conversationHistory,
+            applicationContext: this.getApplicationContextSummary(),
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`API error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const result = data;
+
+        // Add assistant response to history
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: result.textResponse,
+        });
+
+        // Keep conversation history manageable (last 20 messages for better context)
+        if (this.conversationHistory.length > 20) {
+          this.conversationHistory = this.conversationHistory.slice(-20);
+        }
+
+        return {
+          textResponse: result.textResponse,
+          audioUrl: result.audioUrl,
+          analysis: result.analysis || {
+            sentiment: 'neutral',
+            urgency: 'normal',
+            questionType: 'general',
+            recommendations: [],
+          },
+        };
+      } catch (bedrockError) {
+        console.warn('Bedrock service unavailable, using local fallback:', bedrockError);
+        
+        // Fallback to local service
+        const LocalChatbotService = (await import('./LocalChatbotService')).default;
+        const localResponse = await LocalChatbotService.sendMessage(userMessage, systemData, projects);
+        
+        // Add assistant response to history
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: localResponse.textResponse,
+        });
+
+        // Keep conversation history manageable
+        if (this.conversationHistory.length > 20) {
+          this.conversationHistory = this.conversationHistory.slice(-20);
+        }
+
+        return {
+          textResponse: localResponse.textResponse,
+          audioUrl: localResponse.audioUrl,
+          analysis: {
+            sentiment: 'neutral',
+            urgency: 'normal',
+            questionType: 'general',
+            recommendations: [],
+          },
+        };
       }
-
-      const data = await response.json();
-      const result = data;
-
-      // Add assistant response to history
-      this.conversationHistory.push({
-        role: 'assistant',
-        content: result.textResponse,
-      });
-
-      // Keep conversation history manageable (last 20 messages for better context)
-      if (this.conversationHistory.length > 20) {
-        this.conversationHistory = this.conversationHistory.slice(-20);
-      }
-
-      return {
-        textResponse: result.textResponse,
-        audioUrl: result.audioUrl,
-        analysis: result.analysis || {
-          sentiment: 'neutral',
-          urgency: 'normal',
-          questionType: 'general',
-          recommendations: [],
-        },
-      };
     } catch (error) {
-      console.error('Bedrock chatbot error:', error);
+      console.error('Chatbot error:', error);
       throw error;
     }
   }
