@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, MessageCircle, X, Minimize2, Maximize2 } from 'lucide-react';
+import { Send, MessageCircle, X, Minimize2, Maximize2, Zap } from 'lucide-react';
 import EmissionsService, { FacilitySummary } from '../services/EmissionsService';
 import { API_CONFIG } from '../config/api';
-import LocalChatbotService from '../services/LocalChatbotService';
+import BedrockChatbotService from '../services/BedrockChatbotService';
 import { useProjectContext } from '../contexts/ProjectContext';
 
 interface Message {
@@ -10,6 +10,12 @@ interface Message {
   type: 'user' | 'bot';
   content: string;
   timestamp: Date;
+  analysis?: {
+    sentiment: string;
+    urgency: string;
+    questionType: string;
+    recommendations: string[];
+  };
 }
 
 const SystemChatbot = () => {
@@ -20,7 +26,7 @@ const SystemChatbot = () => {
     {
       id: '1',
       type: 'bot',
-      content: 'Hello! I\'m your AI Climate Control Assistant. I can analyze real-time system data, project information, and provide insights about your emissions monitoring, alerts, compliance status, and available features. What would you like to know?',
+      content: 'Hello! I\'m your AI Climate Control Assistant powered by AWS Bedrock. I analyze your facility data, emissions, projects, and alerts to provide intelligent insights. Ask me about your system status, emissions, projects, alerts, or any decarbonization strategies.',
       timestamp: new Date(),
     },
   ]);
@@ -64,14 +70,15 @@ const SystemChatbot = () => {
     setLoading(true);
 
     try {
-      // Use local chatbot service with mock data and project context
-      const response = await LocalChatbotService.sendMessage(userInput, systemData, projects);
+      // Use Bedrock chatbot service with full application context
+      const response = await BedrockChatbotService.sendMessage(userInput, systemData, projects);
       
       const botResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
         content: response.textResponse,
         timestamp: new Date(),
+        analysis: response.analysis,
       };
       setMessages((prev) => [...prev, botResponse]);
     } catch (error) {
@@ -92,7 +99,7 @@ const SystemChatbot = () => {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center z-40"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center z-40"
         title="Open AI Assistant"
       >
         <MessageCircle size={24} />
@@ -101,12 +108,15 @@ const SystemChatbot = () => {
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 flex flex-col transition-all ${isMinimized ? 'h-14' : 'h-96'}`}>
+    <div className={`fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 flex flex-col transition-all ${isMinimized ? 'h-14' : 'h-[600px]'}`}>
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-lg flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <MessageCircle size={20} />
-          <h3 className="font-semibold">AI Climate Assistant</h3>
+          <Zap size={20} className="animate-pulse" />
+          <div>
+            <h3 className="font-semibold">AI Climate Assistant</h3>
+            <p className="text-xs text-blue-100">Powered by AWS Bedrock</p>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <button
@@ -134,14 +144,51 @@ const SystemChatbot = () => {
                 className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-xs px-4 py-2 rounded-lg ${
+                  className={`max-w-xs px-4 py-3 rounded-lg ${
                     message.type === 'user'
                       ? 'bg-blue-600 text-white rounded-br-none'
                       : 'bg-gray-200 text-gray-900 rounded-bl-none'
                   }`}
                 >
                   <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  <p className={`text-xs mt-1 ${message.type === 'user' ? 'text-blue-100' : 'text-gray-600'}`}>
+                  
+                  {/* Show analysis for bot messages */}
+                  {message.type === 'bot' && message.analysis && (
+                    <div className="mt-2 pt-2 border-t border-gray-300 text-xs space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold">Sentiment:</span>
+                        <span className={`px-2 py-0.5 rounded ${
+                          message.analysis.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+                          message.analysis.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {message.analysis.sentiment}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold">Urgency:</span>
+                        <span className={`px-2 py-0.5 rounded ${
+                          message.analysis.urgency === 'critical' ? 'bg-red-100 text-red-700' :
+                          message.analysis.urgency === 'high' ? 'bg-orange-100 text-orange-700' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {message.analysis.urgency}
+                        </span>
+                      </div>
+                      {message.analysis.recommendations.length > 0 && (
+                        <div className="mt-2">
+                          <span className="font-semibold">Recommendations:</span>
+                          <ul className="list-disc list-inside mt-1 space-y-0.5">
+                            {message.analysis.recommendations.map((rec, idx) => (
+                              <li key={idx} className="text-xs">{rec}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <p className={`text-xs mt-2 ${message.type === 'user' ? 'text-blue-100' : 'text-gray-600'}`}>
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
@@ -169,7 +216,7 @@ const SystemChatbot = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Ask about system status..."
+                placeholder="Ask about emissions, projects, alerts..."
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm"
               />
               <button
