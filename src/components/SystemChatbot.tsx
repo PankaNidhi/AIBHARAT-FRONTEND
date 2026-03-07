@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, MessageCircle, X, Minimize2, Maximize2 } from 'lucide-react';
 import EmissionsService, { FacilitySummary } from '../services/EmissionsService';
 import { API_CONFIG } from '../config/api';
-import MockChatbotService from '../services/MockChatbotService';
+import BedrockChatbotService from '../services/BedrockChatbotService';
 
 interface Message {
   id: string;
@@ -62,8 +62,8 @@ const SystemChatbot = () => {
     setLoading(true);
 
     try {
-      // Use mock chatbot service (frontend-only, no backend required)
-      const response = await MockChatbotService.processMessage(userInput, systemData);
+      // Use Bedrock chatbot service
+      const response = await BedrockChatbotService.sendMessage(userInput, systemData);
       
       const botResponse: Message = {
         id: (Date.now() + 1).toString(),
