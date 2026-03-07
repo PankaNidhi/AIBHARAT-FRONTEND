@@ -56,92 +56,147 @@ class LocalChatbotService {
   }
 
   private generateResponse(userMessage: string, systemData: FacilitySummary | null): string {
-    const lowerMessage = userMessage.toLowerCase().trim();
+      const lowerMessage = userMessage.toLowerCase().trim();
 
-    // Extract data from systemData
-    const facilityId = systemData?.facilityId || 'Facility-001';
-    const co2Level = systemData?.latestEmissions?.co2Level || 0;
-    const emissionLevel = co2Level > 500 ? 'high' : co2Level > 300 ? 'moderate' : 'normal';
-    const gasStatus = systemData?.gasStatus?.status || 'normal';
-    const fireStatus = systemData?.fireStatus?.status || 'normal';
-    const wasteStats = systemData?.wasteStats || { totalBins: 0, fullBins: 0, averageFillLevel: 0 };
-    const alertCounts = systemData?.activeAlerts || { critical: 0, high: 0, medium: 0, low: 0 };
-    const totalAlerts = alertCounts.critical + alertCounts.high + alertCounts.medium + alertCounts.low;
+      // Extract data from systemData
+      const facilityId = systemData?.facilityId || 'Facility-001';
+      const co2Level = systemData?.latestEmissions?.co2Level || 0;
+      const temperature = systemData?.latestEmissions?.temperature || 0;
+      const pressure = systemData?.latestEmissions?.pressure || 0;
+      const flowRate = systemData?.latestEmissions?.flowRate || 0;
+      const emissionLevel = co2Level > 500 ? 'high' : co2Level > 300 ? 'moderate' : 'normal';
+      const gasStatus = systemData?.gasStatus?.status || 'normal';
+      const fireStatus = systemData?.fireStatus?.status || 'normal';
+      const wasteStats = systemData?.wasteStats || { totalBins: 0, fullBins: 0, averageFillLevel: 0 };
+      const alertCounts = systemData?.activeAlerts || { critical: 0, high: 0, medium: 0, low: 0 };
+      const totalAlerts = alertCounts.critical + alertCounts.high + alertCounts.medium + alertCounts.low;
 
-    // Project analytics
-    const totalProjects = this.currentProjects?.length || 0;
-    const activeProjects = this.currentProjects?.filter(p => p.status === 'scaling' || p.status === 'implementation').length || 0;
-    const totalCO2Reduction = this.currentProjects?.reduce((sum, p) => sum + p.co2Reduction, 0) || 0;
-    const totalInvestment = this.currentProjects?.reduce((sum, p) => sum + p.investmentValue, 0) || 0;
+      // Project analytics
+      const totalProjects = this.currentProjects?.length || 0;
+      const activeProjects = this.currentProjects?.filter(p => p.status === 'scaling' || p.status === 'implementation').length || 0;
+      const totalCO2Reduction = this.currentProjects?.reduce((sum, p) => sum + p.co2Reduction, 0) || 0;
+      const totalInvestment = this.currentProjects?.reduce((sum, p) => sum + p.investmentValue, 0) || 0;
 
-    // SPECIFIC QUESTION MATCHING - Return only relevant answer
-    
-    // Project status queries
-    if (lowerMessage.includes('project') && (lowerMessage.includes('status') || lowerMessage.includes('update'))) {
-      if (totalProjects === 0) return 'No projects found.';
-      const projects = this.currentProjects || [];
-      const statusList = projects.map(p => `• ${p.name}: ${p.status} (TRL ${p.trlLevel})`).join('\n');
-      return `Project Status:\n${statusList}`;
+      // SPECIFIC QUESTION MATCHING - Return only relevant answer
+
+      // Emissions Monitor queries - detailed emissions data
+      if (lowerMessage.includes('emission') && (lowerMessage.includes('monitor') || lowerMessage.includes('detail') || lowerMessage.includes('reading'))) {
+        return `Emissions Monitor:\n` +
+          `CO2: ${co2Level.toFixed(2)} ppm (${emissionLevel})\n` +
+          `Temperature: ${temperature.toFixed(1)}°C\n` +
+          `Pressure: ${pressure.toFixed(1)} kPa\n` +
+          `Flow Rate: ${flowRate.toFixed(0)} m³/h`;
+      }
+
+      // Waste Management queries - detailed waste data
+      if (lowerMessage.includes('waste') && (lowerMessage.includes('management') || lowerMessage.includes('detail') || lowerMessage.includes('collection'))) {
+        return `Waste Management:\n` +
+          `Total Bins: ${wasteStats.totalBins}\n` +
+          `Full Bins: ${wasteStats.fullBins}\n` +
+          `Average Fill Level: ${wasteStats.averageFillLevel.toFixed(1)}%\n` +
+          `Status: ${wasteStats.fullBins > 0 ? 'Collection needed' : 'Normal'}`;
+      }
+
+      // CHAMPION Module queries - decision cards and economic modeling
+      if (lowerMessage.includes('champion') || (lowerMessage.includes('decision') && lowerMessage.includes('card'))) {
+        return `CHAMPION Module:\n` +
+          `• Economic Modeling: NPV, IRR, payback period calculations\n` +
+          `• Tree Project Simulation: Carbon sequestration & livelihood impacts\n` +
+          `• Decision Cards: 16 integrity-focused cards across 5 project stages\n` +
+          `• Scenario Library: Pre-configured regional scenarios\n` +
+          `• Economic Scenarios: 3 available\n` +
+          `• Tree Scenarios: 2 available`;
+      }
+
+      // Climate Metrics queries - sustainability and compliance data
+      if (lowerMessage.includes('climate') && (lowerMessage.includes('metric') || lowerMessage.includes('compensation'))) {
+        return `Climate Metrics:\n` +
+          `CO2 Avoided: 12,847 tCO₂e (85.6% of 15,000 target)\n` +
+          `Climate Finance: $2.4M (80% of $3.0M target)\n` +
+          `Active Projects: Compliant (98.7%)\n` +
+          `Average ROI: 0.0% (Target: 15%)\n` +
+          `Gold Standard Credits: 8,234 VCUs (82.3% of 10,000 target)\n` +
+          `International Partnerships: 4 countries (66.7% of 6 target)`;
+      }
+
+      // Smart Alerts queries - alert severity breakdown
+      if (lowerMessage.includes('alert') && (lowerMessage.includes('smart') || lowerMessage.includes('severity') || lowerMessage.includes('breakdown'))) {
+        if (totalAlerts === 0) return 'Smart Alerts: No active alerts. All readings within normal thresholds.';
+        return `Smart Alerts:\n` +
+          `Total: ${totalAlerts}\n` +
+          `Critical: ${alertCounts.critical}\n` +
+          `High: ${alertCounts.high}\n` +
+          `Medium: ${alertCounts.medium}\n` +
+          `Low: ${alertCounts.low}`;
+      }
+
+      // Project status queries
+      if (lowerMessage.includes('project') && (lowerMessage.includes('status') || lowerMessage.includes('update'))) {
+        if (totalProjects === 0) return 'No projects found.';
+        const projects = this.currentProjects || [];
+        const statusList = projects.map(p => `• ${p.name}: ${p.status} (TRL ${p.trlLevel})`).join('\n');
+        return `Project Status:\n${statusList}`;
+      }
+
+      // Project details
+      if (lowerMessage.includes('project') && (lowerMessage.includes('detail') || lowerMessage.includes('information'))) {
+        if (totalProjects === 0) return 'No projects available.';
+        const projects = this.currentProjects || [];
+        return projects.map(p => 
+          `${p.name}\n` +
+          `  Country: ${p.country}\n` +
+          `  Sector: ${p.sector}\n` +
+          `  Status: ${p.status}\n` +
+          `  CO2 Reduction: ${p.co2Reduction} tons\n` +
+          `  Investment: ${p.investmentValue}M`
+        ).join('\n\n');
+      }
+
+      // CO2 level
+      if (lowerMessage.includes('co2') || lowerMessage.includes('emission')) {
+        return `CO2 Level: ${co2Level.toFixed(2)} ppm (${emissionLevel})`;
+      }
+
+      // Gas status
+      if (lowerMessage.includes('gas')) {
+        return `Gas Status: ${gasStatus}`;
+      }
+
+      // Fire status
+      if (lowerMessage.includes('fire')) {
+        return `Fire Status: ${fireStatus}`;
+      }
+
+      // Alerts
+      if (lowerMessage.includes('alert')) {
+        if (totalAlerts === 0) return 'No active alerts.';
+        return `Active Alerts: Critical: ${alertCounts.critical}, High: ${alertCounts.high}, Medium: ${alertCounts.medium}, Low: ${alertCounts.low}`;
+      }
+
+      // Waste bins
+      if (lowerMessage.includes('waste') || lowerMessage.includes('bin')) {
+        return `Waste Bins: ${wasteStats.totalBins} total, ${wasteStats.fullBins} full (${wasteStats.averageFillLevel.toFixed(1)}% avg)`;
+      }
+
+      // Portfolio summary
+      if (lowerMessage.includes('portfolio')) {
+        return `Portfolio: ${totalProjects} projects, ${activeProjects} active, ${totalCO2Reduction.toFixed(0)} tons CO2 reduction, ${totalInvestment.toFixed(1)}M investment`;
+      }
+
+      // Facility status
+      if (lowerMessage === 'hi' || lowerMessage === 'hello' || lowerMessage === 'status') {
+        return `Facility: ${facilityId}\nCO2: ${co2Level.toFixed(2)} ppm | Gas: ${gasStatus} | Fire: ${fireStatus} | Alerts: ${totalAlerts} | Waste: ${wasteStats.fullBins}/${wasteStats.totalBins}`;
+      }
+
+      // Help
+      if (lowerMessage.includes('help') || lowerMessage.includes('what can')) {
+        return `Ask about: emissions monitor, waste management, CHAMPION module, climate metrics, smart alerts, project status, CO2, gas, fire, alerts, waste, or portfolio`;
+      }
+
+      // Default - ask for clarification
+      return `Please be more specific. Ask about: emissions monitor, waste management, CHAMPION module, climate metrics, smart alerts, project status, or facility status.`;
     }
 
-    // Project details
-    if (lowerMessage.includes('project') && (lowerMessage.includes('detail') || lowerMessage.includes('information'))) {
-      if (totalProjects === 0) return 'No projects available.';
-      const projects = this.currentProjects || [];
-      return projects.map(p => 
-        `${p.name}\n` +
-        `  Country: ${p.country}\n` +
-        `  Sector: ${p.sector}\n` +
-        `  Status: ${p.status}\n` +
-        `  CO2 Reduction: ${p.co2Reduction} tons\n` +
-        `  Investment: $${p.investmentValue}M`
-      ).join('\n\n');
-    }
-
-    // CO2 level
-    if (lowerMessage.includes('co2') || lowerMessage.includes('emission')) {
-      return `CO2 Level: ${co2Level.toFixed(2)} ppm (${emissionLevel})`;
-    }
-
-    // Gas status
-    if (lowerMessage.includes('gas')) {
-      return `Gas Status: ${gasStatus}`;
-    }
-
-    // Fire status
-    if (lowerMessage.includes('fire')) {
-      return `Fire Status: ${fireStatus}`;
-    }
-
-    // Alerts
-    if (lowerMessage.includes('alert')) {
-      if (totalAlerts === 0) return 'No active alerts.';
-      return `Active Alerts: Critical: ${alertCounts.critical}, High: ${alertCounts.high}, Medium: ${alertCounts.medium}, Low: ${alertCounts.low}`;
-    }
-
-    // Waste bins
-    if (lowerMessage.includes('waste') || lowerMessage.includes('bin')) {
-      return `Waste Bins: ${wasteStats.totalBins} total, ${wasteStats.fullBins} full (${wasteStats.averageFillLevel.toFixed(1)}% avg)`;
-    }
-
-    // Portfolio summary
-    if (lowerMessage.includes('portfolio')) {
-      return `Portfolio: ${totalProjects} projects, ${activeProjects} active, ${totalCO2Reduction.toFixed(0)} tons CO2 reduction, $${totalInvestment.toFixed(1)}M investment`;
-    }
-
-    // Facility status
-    if (lowerMessage === 'hi' || lowerMessage === 'hello' || lowerMessage === 'status') {
-      return `Facility: ${facilityId}\nCO2: ${co2Level.toFixed(2)} ppm | Gas: ${gasStatus} | Fire: ${fireStatus} | Alerts: ${totalAlerts} | Waste: ${wasteStats.fullBins}/${wasteStats.totalBins}`;
-    }
-
-    // Help
-    if (lowerMessage.includes('help') || lowerMessage.includes('what can')) {
-      return `Ask about: project status, project details, CO2, gas, fire, alerts, waste, portfolio, or facility status`;
-    }
-
-    // Default - ask for clarification
-    return `Please be more specific. Ask about: project status, project details, CO2 level, gas status, fire status, alerts, waste, or portfolio.`;
-  }
 
   clearHistory(): void {
     this.conversationHistory = [];
