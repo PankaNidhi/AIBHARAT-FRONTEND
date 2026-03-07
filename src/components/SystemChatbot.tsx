@@ -3,6 +3,7 @@ import { Send, MessageCircle, X, Minimize2, Maximize2 } from 'lucide-react';
 import EmissionsService, { FacilitySummary } from '../services/EmissionsService';
 import { API_CONFIG } from '../config/api';
 import LocalChatbotService from '../services/LocalChatbotService';
+import { useProjectContext } from '../contexts/ProjectContext';
 
 interface Message {
   id: string;
@@ -12,13 +13,14 @@ interface Message {
 }
 
 const SystemChatbot = () => {
+  const { projects } = useProjectContext();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'bot',
-      content: 'Hello! I\'m your AI Climate Control Assistant. I can analyze real-time system data and provide insights about your emissions monitoring, alerts, and compliance status. What would you like to know?',
+      content: 'Hello! I\'m your AI Climate Control Assistant. I can analyze real-time system data, project information, and provide insights about your emissions monitoring, alerts, compliance status, and available features. What would you like to know?',
       timestamp: new Date(),
     },
   ]);
@@ -62,8 +64,8 @@ const SystemChatbot = () => {
     setLoading(true);
 
     try {
-      // Use local chatbot service with mock data
-      const response = await LocalChatbotService.sendMessage(userInput, systemData);
+      // Use local chatbot service with mock data and project context
+      const response = await LocalChatbotService.sendMessage(userInput, systemData, projects);
       
       const botResponse: Message = {
         id: (Date.now() + 1).toString(),
